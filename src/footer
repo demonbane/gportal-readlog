@@ -1,0 +1,4 @@
+EndOfAwk
+}
+trap cleanup EXIT
+main

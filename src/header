@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -e
+
+CONFIG="${HOME}/.gportal-readlog.conf"
+
+if [ ! -f "${CONFIG}" ]; then
+	echo "${CONFIG} not found, aborting."
+	exit 1
+fi
+source "${CONFIG}"
+
+main() {
+hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n' >2 && exit 1; }
+hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >2 && exit 1; }
+loadawk || { printf 'Unable to create temp file, aborting\n' >2 && exit 1; }
+curl -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}"
+}
+
+cleanup() {
+	rm -f "${tempfile}"
+}
+
+loadawk() {
+	tempfile="$(mktemp -t readlog.XXXX)"
+	cat - > "${tempfile}" <<'EndOfAwk'
