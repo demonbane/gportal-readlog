@@ -48,7 +48,9 @@ function join(array, start, end, sep,    result, i)
 
 /Join succeeded/ {
 	split($0, myfields, "[ \n\r\t]+")
-	if (userip[1]=="empty" || username[1]=="someone")
+	if (username[1]==myfields[4] || username[2]==myfields[4])
+		next
+	else if (userip[1]=="empty" || username[1]=="someone")
 		curid=1
 	else if (userip[2]=="empty" || username[2]=="someone")
 		curid=2
@@ -63,7 +65,7 @@ function join(array, start, end, sep,    result, i)
 
 /Client login from/ {
 	split($0, myfields, "[ \n\r\t,]+")
-	if (userip[1]=="empty")
+	if (userip[1]=="empty" || userip[1]==myfields[5])
 		userip[1]=myfields[5]
 	else
 		userip[2]=myfields[5]
