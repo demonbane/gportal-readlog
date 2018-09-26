@@ -6,7 +6,7 @@ BEGIN {
 	userip[2]="empty"
 }
 
-/^\[[[:digit:].\-:]+\]\[ [[:digit:]]{2}\]/ { sub(/\[ [[:digit:]]{2}\]/, "[999]") }
+/^\[[[:digit:].\-:]+\]\[ [ [:digit:]]{2}\]/ { sub(/\[ [ [:digit:]]{2}\]/, "[999]") }
 
 /players=[0-9]/ {
 	split($2, preval, /=/)
