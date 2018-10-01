@@ -64,8 +64,7 @@ function localtime(s,   timespec) {
 	return strftime(PROCINFO["strftime"], timespec)
 }
 
-function join(array, start, end, sep,    result, i)
-{
+function join(array, start, end, sep,    result, i) {
     if (sep == "")
        sep = " "
     else if (sep == SUBSEP) # magic value
