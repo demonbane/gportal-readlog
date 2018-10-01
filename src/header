@@ -33,7 +33,8 @@ elif [ "$uselocal" == "TRUE" ]; then
 	printf 'Reading data from "%s"...\n' "$LOCALPATH"
 	find "$LOCALPATH" -name 'ConanSandbox*' -mtime -"${fileage:-99}" | sort | xargs gawk -f "${tempfile}"
 else
-	curl -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}"
+	set -o pipefail
+	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
 fi
 }
 
