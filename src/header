@@ -8,18 +8,30 @@ if [ ! -f "${CONFIG}" ]; then
 	exit 1
 fi
 
+source "${CONFIG}"
+
 if [[ -n "$1" && -f "$1" ]]; then
 	filename="$1"
+elif [[ -n "$1" && -d "$LOCALPATH" ]]; then
+	uselocal="TRUE"
+	[ "$1" -eq "$1" ] 2>/dev/null && fileage="$1"
+	if [ "$fileage" -eq 0 ] 2>/dev/null; then
+		uselocal="FALSE"
+		filename="$LOCALPATH/ConanSandbox.log"
+	fi
 fi
-source "${CONFIG}"
 
 main() {
 hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n' >2 && exit 1; }
 hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >2 && exit 1; }
+
 loadawk || { printf 'Unable to create temp file, aborting\n' >2 && exit 1; }
 if [ -n "${filename}" ]; then
-	printf 'Reading data from %s...\n' "$filename"
+	printf 'Reading data from "%s"...\n' "$filename"
 	gawk -f "${tempfile}" "$filename"
+elif [ "$uselocal" == "TRUE" ]; then
+	printf 'Reading data from "%s"...\n' "$LOCALPATH"
+	find "$LOCALPATH" -name 'ConanSandbox*' -mtime -"${fileage:-99}" | sort | xargs gawk -f "${tempfile}"
 else
 	curl -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}"
 fi
