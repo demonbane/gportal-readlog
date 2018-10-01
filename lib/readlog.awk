@@ -14,20 +14,21 @@ ENDFILE {
 		}
 	}
 	delete users
-	if (length(daytotal))
+	if (isarray(daytotal) && length(daytotal) > 0) {
 		printf "\n"
-	for (username in daytotal) {
-		grandtotal[username] += daytotal[username]
-		printf "Today for %s: %s\n", username, totime(daytotal[username])
-	}
-	if (length(daytotal))
+		for (username in daytotal) {
+			grandtotal[username] += daytotal[username]
+			printf "Today for %s: %s\n", username, totime(daytotal[username])
+		}
 		printf "\n\n"
-	delete daytotal
+		delete daytotal
+	}
 }
 
 END {
-	for (username in grandtotal)
-		printf "Total for %s: %s\n", username, totime(grandtotal[username])
+	if (isarray(grandtotal) && length(grandtotal) > 0)
+		for (username in grandtotal)
+			printf "Total for %s: %s\n", username, totime(grandtotal[username])
 }
 
 function getdetails(uids, uips,   preval, portval) {
