@@ -1,36 +1,65 @@
 BEGIN {
-	FS="\\?"
-	username[1]="someone"
-	username[2]="someone"
-	userip[1]="empty"
-	userip[2]="empty"
+	FS=": "
 }
 
-/^\[[[:digit:].\-:]+\]\[ [ [:digit:]]{2}\]/ { sub(/\[ [ [:digit:]]{2}\]/, "[999]") }
+{ lastline=$0 }
 
-/players=[0-9]/ {
-	split($2, preval, /=/)
-	split(preval[2], vals, /\&/)
-	players=vals[1]
-	if (players == oldplayers)
-		next
-	else {
-		oldplayers=players
-		color=32+players
-		printf "\033[1;%sm%s\033[0m %s players", color, localtime($0), players
-		if (players==1)
-			printf ", " username[1]
-		else if (players==2)
-			printf ", " username[1] ", " username[2]
-
-		print ""
+ENDFILE {
+	if (lastline !~ /Log file closed/) {
+		for (userid in users) {
+			if (users[userid]["status"] == "connected") {
+				daytotal[users[userid]["name"]] += (tounix(lastline) - users[userid]["starttime"])
+				users[userid]["status"] = "ended"
+			}
+		}
 	}
+	delete users
+	if (length(daytotal))
+		printf "\n"
+	for (username in daytotal) {
+		grandtotal[username] += daytotal[username]
+		printf "Today for %s: %s\n", username, totime(daytotal[username])
+	}
+	if (length(daytotal))
+		printf "\n\n"
+	delete daytotal
 }
 
-function localtime(s) {
+END {
+	for (username in grandtotal)
+		printf "Total for %s: %s\n", username, totime(grandtotal[username])
+}
+
+function getdetails(uids, uips,   preval, portval) {
+	delete thisuser
+	split(uids, preval, /[,_]/)
+	thisuser["id"] = preval[2]
+
+	split(uips, preval, /:/)
+	thisuser["ip"] = preval[1]
+
+	split(preval[2], portval, /, /)
+	thisuser["port"] = portval[1]
+}
+
+function tounix(s,   timestr, timespec, patparts) {
 	patsplit(s, patparts, "[[:digit:]]+")
 	timestr=join(patparts, 1, 6)
 	timespec=mktime(timestr, 1)
+	return timespec
+}
+
+function totime(s,   hours, minutes, seconds) {
+	hours=int(s/60/60)
+	s -= (hours*60*60)
+	minutes=int(s/60)
+	s -= (minutes*60)
+	seconds = s
+	return sprintf("%ih %im %is", hours, minutes, seconds)
+}
+
+function localtime(s,   timespec) {
+	timespec = tounix(s)
 	return strftime(PROCINFO["strftime"], timespec)
 }
 
@@ -46,49 +75,88 @@ function join(array, start, end, sep,    result, i)
     return result
 }
 
-/Join succeeded/ {
-	split($0, myfields, "[ \n\r\t]+")
-	if (username[1]==myfields[4] || username[2]==myfields[4])
-		next
-	else if (userip[1]=="empty" || username[1]=="someone")
-		curid=1
-	else if (userip[2]=="empty" || username[2]=="someone")
-		curid=2
+function connectedusers(   connectedcount, connected) {
+	connectedcount=0
+	connected=""
+	for (userid in users) {
+		if (users[userid]["status"] == "connected") {
+			connectedcount++
+			if (connected)
+				connected = connected", "users[userid]["name"]
+			else
+				connected = ", "users[userid]["name"]
+		}
+	}
+	color=32+connectedcount
+	printf "\033[1;%im%s\033[0m %s players%s\n", color, localtime($1), connectedcount, connected
+}
 
-	if (userip[curid]=="empty")
-		userip[1]="unknown"
+/LogNet: AddClientConnection:/ {
+	getdetails($6, $5)
+	userid=thisuser["id"]
 
-	if (myfields[4]=="succeeded:")
+	if (userid in users) {
 		print $0
-	username[curid]=myfields[4]
-}
-
-/Client login from/ {
-	split($0, myfields, "[ \n\r\t,]+")
-	if (userip[1]=="empty" || userip[1]==myfields[5])
-		userip[1]=myfields[5]
-	else
-		userip[2]=myfields[5]
-}
-
-/Closing connection.*RemoteAddr:/ {
-	split($0, myfields, ":")
-	gsub(/ /, "", myfields[9])
-	if (userip[1]==myfields[9])
-		userid=1
-	else if (userip[2]==myfields[9])
-		userid=2
-
-	if (userid==1 && username[2]!="empty") {
-		username[1]=username[2]
-		userip[1]=userip[2]
-		userid=2
+		print "userid already exists, aborting"
+		exit 1
 	}
 
-	if (userid) {
-		username[userid]="someone"
-		userip[userid]="empty"
-	} else
-		print "No user found for IP='" myfields[9] "'"
+	users[userid]["ip"] = thisuser["ip"]
+	users[userid]["port"] = thisuser["port"]
+	users[userid]["status"] = "pending"
 }
 
+/Join succeeded/ {
+	split($3, myfields, "[ \n\r\t]+")
+	username=myfields[1]
+
+	for (userid in users) {
+		if (users[userid]["status"] == "pending") {
+			if (pendingid) {
+				print "Multiple pending logins, aborting"
+				exit 1
+			}
+			pendingid = userid
+		}else if (users[userid]["status"] == "connected") {
+			if (connected && users[userid]["name"]) {
+				connected = connected" ,"users[userid]["name"]
+				connectedcount++
+			}else if (users[userid]["name"]) {
+				connected = users[userid]["name"]
+				connectedcount++
+			}
+		}
+	}
+
+	if (!pendingid) {
+		print $0
+		print "Unable to find pending login, aborting"
+		exit 1
+	}
+
+	if (connected)
+		connected = connected", "username
+	else
+		connectedcount=1
+
+	users[pendingid]["name"] = username
+	users[pendingid]["status"] = "connected"
+	users[pendingid]["starttime"] = tounix($0)
+
+	connectedusers()
+	pendingid=""
+}
+
+/LogNet: UChannel::Close/ {
+	getdetails($8, $7)
+	userid = thisuser["id"]
+	#users[thisuser["id"]]["status"] = "closed"
+	endtime=tounix($0)
+	if (users[userid]["status"] == "connected"){
+		elapsed = (endtime - users[userid]["starttime"])
+		daytotal[users[userid]["name"]] += elapsed
+	}
+	delete users[userid]
+	connectedusers()
+	userid=""
+}
