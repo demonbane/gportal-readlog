@@ -14,21 +14,32 @@ ENDFILE {
 		}
 	}
 	delete users
+}
+
+END {
+	printday()
+	if (isarray(grandtotal) && length(grandtotal) > 0)
+		for (username in grandtotal)
+			if (grandtotal[username] > daytotal[username])
+				printf "Total for %s: %s\n", username, totime(grandtotal[username])
+}
+
+function changeday() {
+	printday()
+	delete daytotal
+	daydate=curdate
+}
+
+function printday(   today) {
 	if (isarray(daytotal) && length(daytotal) > 0) {
 		printf "\n"
 		for (username in daytotal) {
 			grandtotal[username] += daytotal[username]
-			printf "Today for %s: %s\n", username, totime(daytotal[username])
+			today=strftime("%B %-e", mktime(gensub("-", " ", "g", daydate)" 00 00 00"))
+			printf "%s for %s: %s\n", today, username, totime(daytotal[username])
 		}
-		printf "\n\n"
-		delete daytotal
+		printf "\n"
 	}
-}
-
-END {
-	if (isarray(grandtotal) && length(grandtotal) > 0)
-		for (username in grandtotal)
-			printf "Total for %s: %s\n", username, totime(grandtotal[username])
 }
 
 function getdetails(uids, uips,   preval, portval) {
@@ -50,6 +61,10 @@ function tounix(s,   timestr, timespec, patparts) {
 	return timespec
 }
 
+function getdate(s,   patparts) {
+	return localtime(s, "%F")
+}
+
 function totime(s,   hours, minutes, seconds) {
 	hours=int(s/60/60)
 	s -= (hours*60*60)
@@ -59,9 +74,13 @@ function totime(s,   hours, minutes, seconds) {
 	return sprintf("%ih %im %is", hours, minutes, seconds)
 }
 
-function localtime(s,   timespec) {
+function localtime(s, format,   timespec) {
 	timespec = tounix(s)
-	return strftime(PROCINFO["strftime"], timespec)
+
+	if (!format)
+		format=PROCINFO["strftime"]
+
+	return strftime(format, timespec)
 }
 
 function join(array, start, end, sep,    result, i) {
@@ -92,6 +111,12 @@ function connectedusers(   connectedcount, connected) {
 }
 
 /LogNet: AddClientConnection:/ {
+	curdate=getdate($1)
+	if (!daydate)
+		daydate=curdate
+	else if (curdate > daydate)
+		changeday()
+
 	getdetails($6, $5)
 	userid=thisuser["id"]
 
