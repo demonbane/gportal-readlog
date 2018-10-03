@@ -1,6 +1,12 @@
 BEGIN {
 	FS=": "
+	if (startdate)
+		gsub(/\./, "\\.", startdate)
 }
+
+$0 ~ startdate { targetreached=1 }
+
+!targetreached { next }
 
 { lastline=$0 }
 

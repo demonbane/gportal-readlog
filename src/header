@@ -30,8 +30,17 @@ if [ -n "${filename}" ]; then
 	printf 'Reading data from "%s"...\n' "$filename"
 	gawk -f "${tempfile}" "$filename"
 elif [ "$uselocal" == "TRUE" ]; then
+	if date --version &> /dev/null; then
+		startdate="$(date -d "$fileage days ago" "+%Y.%m.%d")"
+	elif date -v -2d &> /dev/null; then
+		startdate="$(date -v "-${fileage}d" "+%Y.%m.%d")"
+	else
+		printf 'Could not parse date offset, use a filename instead. Aborting.\n' >2
+		exit 1
+	fi
+
 	printf 'Reading data from "%s"...\n' "$LOCALPATH"
-	find "$LOCALPATH" -name 'ConanSandbox*' -mtime -"${fileage:-99}" | sort | xargs gawk -f "${tempfile}"
+	find "$LOCALPATH" -name 'ConanSandbox*' | sort | gawk '/'"$startdate"'/ { flagged=1; } flagged' | xargs gawk -v "startdate=$startdate" -f "${tempfile}"
 else
 	set -o pipefail
 	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
