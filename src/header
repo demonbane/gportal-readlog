@@ -10,14 +10,15 @@ fi
 
 source "${CONFIG}"
 
-if [ -n "$1" ]; then
-	if [ "$1" == "-d" ]; then
-		debug="true"
-		shift
-	fi
+if [ "$1" == "-d" ]; then
+	debug="true"
+	shift
+fi
 
+if [ -n "$1" ]; then
 	if [ "$1" -eq 0 ] 2>/dev/null; then
-		filename="$LOCALPATH/ConanSandbox.log"
+		uselocal="TRUE"
+		LOCALPATH="$LOCALPATH/ConanSandbox.log"
 	elif [ -d "$LOCALPATH" ] && [ "$1" -eq "$1" ]; then
 		uselocal="TRUE"
 		fileage="$1"
@@ -27,27 +28,27 @@ if [ -n "$1" ]; then
 		elif date -v -2d &> /dev/null; then
 			startdate="$(date -v "-${fileage}d" "+%Y.%m.%d")"
 		else
-			printf 'Could not parse date offset, use a filename instead. Aborting.\n' >2
+			printf 'Could not parse date offset, use a filename instead. Aborting.\n' >&2
 			exit 1
 		fi
 	else
-		printf 'Invalid parameters supplied, aborting.\n' >2
+		printf 'Invalid parameters supplied, aborting.\n' >&2
 		exit 1
 	fi
 fi
 
 main() {
-hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n' >2 && exit 1; }
-hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >2 && exit 1; }
+hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n' >&2 && exit 1; }
+hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >&2 && exit 1; }
 
-loadawk || { printf 'Unable to create temp file, aborting\n' >2 && exit 1; }
+loadawk || { printf 'Unable to create temp file, aborting\n' >&2 && exit 1; }
 
 if [ "$uselocal" == "TRUE" ]; then
 	printf 'Reading data from "%s"...\n' "$LOCALPATH"
-	find "$LOCALPATH" -name 'ConanSandbox*' | sort | xargs gawk -v "startdate=$startdate" -f "${tempfile}"
+	find "$LOCALPATH" -name 'ConanSandbox*' | sort | xargs gawk -v "startdate=$startdate" -v "debug=$debug" -f "${tempfile}"
 else
 	set -o pipefail
-	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
+	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
 fi
 }
 
