@@ -1,10 +1,42 @@
 BEGIN {
 	FS=": "
-	if (startdate)
+	if (startdate) {
+		startudate=mktime(gensub(/[.\-]/, " ", "g", startdate)" 00 00 00")
+		# convert to UTC-based string in case the timezone affected the date
+		utcstart=strftime("%Y\\.%m\\.%d-%H", startudate, 1)
 		gsub(/\./, "\\.", startdate)
+	}
 }
 
-$0 ~ startdate { targetreached=1 }
+FNR == 1 {
+	if (!targetreached && startdate && FILENAME ~ /ConanSandbox-backup-[[:digit:].\-]+/) {
+		thisfile=gensub(".*/", "", "1", FILENAME)
+		patsplit(thisfile, patparts, /[[:digit:]]+/)
+
+		if (debug) {
+			printf "startdate=%s\nFILENAME=%s\nthisfile=%s\nlength(patparts)=%d\n", startdate, FILENAME, thisfile, length(patparts)
+
+			for (i in patparts) {
+				printf "patparts[%d]=%s\n", i, patparts[i]
+			}
+		}
+
+		filedate=mktime(join(patparts, 1, 6))
+
+		if (startudate > filedate)
+			nextfile
+		else if ($0 ~ /Log file open/) {
+			patsplit($0, patparts, /[[:digit:]]+/)
+			logstart=mktime("20"patparts[3]" "patparts[1]" "patparts[2]" "patparts[4]" "patparts[5]" "patparts[6])
+			if (logstart > startudate)
+				targetreached=1
+		}
+	}
+}
+
+!targetreached && $0 ~ utcstart {
+	targetreached=1
+}
 
 !targetreached { next }
 
@@ -100,7 +132,7 @@ function join(array, start, end, sep,    result, i) {
     return result
 }
 
-function connectedusers(   connectedcount, connected) {
+function connectedusers(forceflag,   connectedcount, connected) {
 	connectedcount=0
 	connected=""
 	for (userid in users) {
@@ -113,7 +145,8 @@ function connectedusers(   connectedcount, connected) {
 		}
 	}
 	color=32+connectedcount
-	printf "\033[1;%im%s\033[0m %s players%s\n", color, localtime($1), connectedcount, connected
+	if (forceflag || connectedcount > 0)
+		printf "\033[1;%im%s\033[0m %s players%s\n", color, localtime($1), connectedcount, connected
 }
 
 /LogNet: AddClientConnection:/ {
@@ -179,6 +212,7 @@ function connectedusers(   connectedcount, connected) {
 }
 
 /LogNet: UChannel::Close/ {
+	wasconnected=""
 	getdetails($8, $7)
 	userid = thisuser["id"]
 	#users[thisuser["id"]]["status"] = "closed"
@@ -186,8 +220,9 @@ function connectedusers(   connectedcount, connected) {
 	if (users[userid]["status"] == "connected"){
 		elapsed = (endtime - users[userid]["starttime"])
 		daytotal[users[userid]["name"]] += elapsed
+		wasconnected="true"
 	}
 	delete users[userid]
-	connectedusers()
+	connectedusers(wasconnected)
 	userid=""
 }

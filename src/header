@@ -10,14 +10,29 @@ fi
 
 source "${CONFIG}"
 
-if [[ -n "$1" && -f "$1" ]]; then
-	filename="$1"
-elif [[ -n "$1" && -d "$LOCALPATH" ]]; then
-	uselocal="TRUE"
-	[ "$1" -eq "$1" ] 2>/dev/null && fileage="$1"
-	if [ "$fileage" -eq 0 ] 2>/dev/null; then
-		uselocal="FALSE"
+if [ -n "$1" ]; then
+	if [ "$1" == "-d" ]; then
+		debug="true"
+		shift
+	fi
+
+	if [ "$1" -eq 0 ] 2>/dev/null; then
 		filename="$LOCALPATH/ConanSandbox.log"
+	elif [ -d "$LOCALPATH" ] && [ "$1" -eq "$1" ]; then
+		uselocal="TRUE"
+		fileage="$1"
+
+		if date --version &> /dev/null; then
+			startdate="$(date -d "$fileage days ago" "+%Y.%m.%d")"
+		elif date -v -2d &> /dev/null; then
+			startdate="$(date -v "-${fileage}d" "+%Y.%m.%d")"
+		else
+			printf 'Could not parse date offset, use a filename instead. Aborting.\n' >2
+			exit 1
+		fi
+	else
+		printf 'Invalid parameters supplied, aborting.\n' >2
+		exit 1
 	fi
 fi
 
@@ -26,21 +41,10 @@ hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n
 hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >2 && exit 1; }
 
 loadawk || { printf 'Unable to create temp file, aborting\n' >2 && exit 1; }
-if [ -n "${filename}" ]; then
-	printf 'Reading data from "%s"...\n' "$filename"
-	gawk -f "${tempfile}" "$filename"
-elif [ "$uselocal" == "TRUE" ]; then
-	if date --version &> /dev/null; then
-		startdate="$(date -d "$fileage days ago" "+%Y.%m.%d")"
-	elif date -v -2d &> /dev/null; then
-		startdate="$(date -v "-${fileage}d" "+%Y.%m.%d")"
-	else
-		printf 'Could not parse date offset, use a filename instead. Aborting.\n' >2
-		exit 1
-	fi
 
+if [ "$uselocal" == "TRUE" ]; then
 	printf 'Reading data from "%s"...\n' "$LOCALPATH"
-	find "$LOCALPATH" -name 'ConanSandbox*' | sort | gawk '/'"$startdate"'/ { flagged=1; } flagged' | xargs gawk -v "startdate=$startdate" -f "${tempfile}"
+	find "$LOCALPATH" -name 'ConanSandbox*' | sort | xargs gawk -v "startdate=$startdate" -f "${tempfile}"
 else
 	set -o pipefail
 	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/ConanSandbox/Saved/Logs/ConanSandbox.log | gawk -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
