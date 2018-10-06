@@ -13,14 +13,6 @@ FNR == 1 {
 		thisfile=gensub(".*/", "", "1", FILENAME)
 		patsplit(thisfile, patparts, /[[:digit:]]+/)
 
-		if (debug) {
-			printf "startdate=%s\nFILENAME=%s\nthisfile=%s\nlength(patparts)=%d\n", startdate, FILENAME, thisfile, length(patparts)
-
-			for (i in patparts) {
-				printf "patparts[%d]=%s\n", i, patparts[i]
-			}
-		}
-
 		filedate=mktime(join(patparts, 1, 6))
 
 		if (startudate > filedate)
@@ -122,31 +114,49 @@ function localtime(s, format,   timespec) {
 }
 
 function join(array, start, end, sep,    result, i) {
-    if (sep == "")
-       sep = " "
-    else if (sep == SUBSEP) # magic value
-       sep = ""
-    result = array[start]
-    for (i = start + 1; i <= end; i++)
-        result = result sep array[i]
-    return result
+	if (length(array) == 0)
+		return
+	if (sep == "")
+		sep = " "
+	else if (sep == SUBSEP) # magic value
+		sep = ""
+
+	if (!start)
+		start=1
+
+	if (!end)
+		end=length(array)
+
+	result = array[start]
+	for (i = start + 1; i <= end; i++)
+		result = result sep array[i]
+	return result
 }
 
-function connectedusers(forceflag,   connectedcount, connected) {
-	connectedcount=0
-	connected=""
+function connectedlist(   connected, count, userid) {
+	count=1
 	for (userid in users) {
-		if (users[userid]["status"] == "connected") {
-			connectedcount++
-			if (connected)
-				connected = connected", "users[userid]["name"]
-			else
-				connected = ", "users[userid]["name"]
-		}
+		if (users[userid]["status"] == "connected")
+			connected[count++]=users[userid]["name"]
 	}
-	color=32+connectedcount
-	if (forceflag || connectedcount > 0)
-		printf "\033[1;%im%s\033[0m %s players%s\n", color, localtime($1), connectedcount, connected
+
+	return join(connected, 1, "", ", ")
+}
+
+function connectedcount(   connectedsplit) {
+	split(connectedlist(), connectedsplit, /, /)
+	return length(connectedsplit)
+}
+
+function printstatus(time, postscript,   color, playercount) {
+	playercount=connectedcount()
+	color=32+playercount
+	if (playercount > 0)
+		playerlist=", "connectedlist()
+	if (!debug)
+		postscript=""
+
+	printf "\033[1;%im%s\033[0m %s players%s%s\n", color, time, playercount, playerlist, postscript
 }
 
 /LogNet: AddClientConnection:/ {
@@ -181,48 +191,37 @@ function connectedusers(forceflag,   connectedcount, connected) {
 				exit 1
 			}
 			pendingid = userid
-		}else if (users[userid]["status"] == "connected") {
-			if (connected && users[userid]["name"]) {
-				connected = connected" ,"users[userid]["name"]
-				connectedcount++
-			}else if (users[userid]["name"]) {
-				connected = users[userid]["name"]
-				connectedcount++
-			}
 		}
 	}
 
 	if (!pendingid) {
-		print $0
-		print "Unable to find pending login, aborting"
-		exit 1
+		print "--- Unable to find pending login, skipping"
+		print "--- "$0
+		next
 	}
-
-	if (connected)
-		connected = connected", "username
-	else
-		connectedcount=1
 
 	users[pendingid]["name"] = username
 	users[pendingid]["status"] = "connected"
 	users[pendingid]["starttime"] = tounix($0)
 
-	connectedusers()
+	printstatus(localtime($1), " (+"users[pendingid]["name"]" "pendingid")")
 	pendingid=""
 }
 
 /LogNet: UChannel::Close/ {
-	wasconnected=""
+	startcount=connectedcount()
 	getdetails($8, $7)
 	userid = thisuser["id"]
-	#users[thisuser["id"]]["status"] = "closed"
+	username = users[userid]["name"]
 	endtime=tounix($0)
 	if (users[userid]["status"] == "connected"){
 		elapsed = (endtime - users[userid]["starttime"])
 		daytotal[users[userid]["name"]] += elapsed
-		wasconnected="true"
 	}
 	delete users[userid]
-	connectedusers(wasconnected)
+
+	if (startcount != connectedcount())
+		printstatus(localtime($1), " (-"username" "userid")")
+
 	userid=""
 }
