@@ -148,7 +148,7 @@ function connectedcount(   connectedsplit) {
 	return length(connectedsplit)
 }
 
-function printstatus(time, postscript,   color, playercount) {
+function printstatus(time, postscript,   color, playercount, playerlist) {
 	playercount=connectedcount()
 	color=32+playercount
 	if (playercount > 0)
