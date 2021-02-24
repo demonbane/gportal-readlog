@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+set -e
+
+CONFIG="${HOME}/.gportal-readlog.conf"
+
+if [ ! -f "${CONFIG}" ]; then
+	echo "${CONFIG} not found, aborting."
+	exit 1
+fi
+
+source "${CONFIG}"
+
+if [ "$1" == "-d" ]; then
+	debug="true"
+	shift
+fi
+
+if [ -n "$1" ]; then
+	uselocal="TRUE"
+fi
+
+main() {
+hash gawk 2> /dev/null || { printf 'gawk is required but unavailable, aborting\n' >&2 && exit 1; }
+hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborting\n' >&2 && exit 1; }
+
+loadawk || { printf 'Unable to create temp file, aborting\n' >&2 && exit 1; }
+
+if [[ "$uselocal" == "TRUE" && -f "$LOCALPATH" ]]; then
+	printf 'Reading data from "%s"...\n' "$LOCALPATH"
+	gawk -v "debug=$debug" -f "${tempfile}" "$LOCALPATH"
+elif [ -n "$CURLURL" ]; then
+	printf 'Reading data from "%s"...\n' "$CURLURL"
+	set -o pipefail
+	curl --connect-timeout 2 -s "$CURLURL" | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to %s, aborting\n' "$CURLURL" >&2 && exit 1; }
+else
+	printf 'Reading data from "%s"...\n' "$SERVER"
+	set -o pipefail
+	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/server.log | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
+fi
+}
+
+cleanup() {
+	rm -f "${tempfile}"
+}
+
+loadawk() {
+	tempfile="$(mktemp -t readlog.XXXX)"
+	cat - > "${tempfile}" <<'EndOfAwk'
