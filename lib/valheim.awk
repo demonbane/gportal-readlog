@@ -20,6 +20,7 @@ BEGIN{
 		next
 	timestamp=tounix($1)
 	logintime[username]=timestamp
+	logouttime[username]=""
 	#print username,"logged in at",strftime("%+", timestamp, 0),"with ID",id
 }
 
@@ -33,24 +34,36 @@ BEGIN{
 	totalduration[username]+=duration
 	totaldeaths[username]+=deaths[username]
 	if (username) {
-		message=username" logged in from "strftime("%R %D", logintime[username], 0)" to "strftime("%R %D", logouttime[username])
-		if (deaths[username] == 1)
-			message=message" and died once"
-		else if (deaths[username] > 1)
-			message=message" and died "deaths[username]" times"
-		message=message" for a total of "totime(duration)
-		deaths[username]=0
-
-		print message
+		printlogout()
 		#print username,"logged in from",strftime("%R %D", logintime[username], 0),"to",strftime("%R %D", logouttime[username]),"for a total of",totime(duration)
 	}
 }
 
 END {
+	for (username in logintime)
+		if (username && ! logouttime[username]) {
+			duration=systime() - logintime[username]
+			totalduration[username]+=duration
+			printlogout()
+		}
 	print "\nTOTALS:"
 	for (username in totalduration)
 		if (username)
 			print username":",totime(totalduration[username]),"("totaldeaths[username],"deaths)"
+}
+
+function printlogout() {
+	message=username" logged in from "strftime("%R %D", logintime[username], 0)
+	if (logouttime[username])
+		message=message" to "strftime("%R %D", logouttime[username])
+	if (deaths[username] == 1)
+		message=message" and died once"
+	else if (deaths[username] > 1)
+		message=message" and died "deaths[username]" times"
+	message=message" for a total of "totime(duration)
+	deaths[username]=0
+
+	print message
 }
 
 function tounix(s,   timestr, timespec, patparts) {
