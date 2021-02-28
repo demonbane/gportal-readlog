@@ -29,13 +29,13 @@ if [[ "$uselocal" == "TRUE" && -f "$LOCALPATH" ]]; then
 	printf 'Reading data from "%s"...\n' "$LOCALPATH"
 	gawk -v "debug=$debug" -f "${tempfile}" "$LOCALPATH"
 elif [ -n "$CURLURL" ]; then
-	printf 'Reading data from "%s"...\n' "$CURLURL"
+	SERVERIP="$(cut -f3 -d/ <<< "$CURLURL" | cut -f2 -d@ | cut -f1 -d:)"
+	printf 'Reading data from "%s"...\n' $SERVERIP
 	set -o pipefail
 	curl --connect-timeout 2 -s "$CURLURL" | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to %s, aborting\n' "$CURLURL" >&2 && exit 1; }
 else
-	printf 'Reading data from "%s"...\n' "$SERVER"
-	set -o pipefail
-	curl --connect-timeout 2 -su "${USERNAME}":"${PASSWORD}" ftp://"${SERVER}":"${PORT}"/server.log | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to ftp://%s:%s, aborting\n' "${SERVER}" "${PORT}" >&2 && exit 1; }
+	printf 'No log provided, exiting\n'
+	exit 1
 fi
 }
 
