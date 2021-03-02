@@ -3,6 +3,9 @@ BEGIN{
 }
 
 /^[0-9/ :]+Got character ZDOID from/ {
+	timestamp=tounix($1)
+	if (timestamp < starttime)
+		next
 	split($2, somewords, " ")
 	username=join(somewords, 5)
 	if ($3 == "0:0") {
@@ -18,7 +21,6 @@ BEGIN{
 	userids[id]=username
 	if (suidparts[1] == uidparts[1])
 		next
-	timestamp=tounix($1)
 	logintime[username]=timestamp
 	logouttime[username]=""
 	#print username,"logged in at",strftime("%+", timestamp, 0),"with ID",id
@@ -46,6 +48,8 @@ END {
 			totalduration[username]+=duration
 			printlogout()
 		}
+	if (length(totalduration) == 0)
+		exit 1
 	print "\nTOTALS:"
 	for (username in totalduration)
 		if (username)

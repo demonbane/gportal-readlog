@@ -10,17 +10,37 @@ fi
 
 source "${CONFIG}"
 
-if [ "$1" == "-d" ]; then
-	debug="true"
-	shift
+x=1
+while getopts "dflh" opt; do
+	case "$opt" in
+		d) debug="true";;
+		f) usefull="true";;
+		l) uselocal="true";;
+		h|\?) printf 'Usage: %s [-d] [-f] [-l] START_TIME
+	-d	Print deaths as they occur
+	-f	Use the full log instead of current system log
+	-l	Use the log file found in LOCALPATH
+
+If START_TIME < 10000, interpret as days, otherwise as seconds since the epoch\n' "$(basename "$0")"; exit 0;;
+	esac
+	x=$OPTIND
+done
+shift $(($x-1))
+
+if [ ! "$uselocal" -a -z "$CURLURL" ]; then
+	echo "CURLURL is required, but not defined, exiting"
+	exit 1
+elif [ ! "$uselocal" -a -z "$FULLCURLURL" ]; then
+	echo "FULLCURLURL is required, but not defined, exiting"
+	exit 1
 fi
 
-if [ "$1" == "-f" ]; then
-	CURLURL="$FULLCURLURL"
-fi
-
-if [ -n "$1" ]; then
-	uselocal="TRUE"
+if [[ "$1" =~ ^[0-9]+$ ]]; then
+	if [ "$1" -gt 10000 ]; then
+		starttime="$1"
+	else
+		starttime=$((EPOCHSECONDS - 86400 * $1))
+	fi
 fi
 
 main() {
@@ -29,18 +49,40 @@ hash mktemp 2> /dev/null || { printf 'mktemp is required but unavailable, aborti
 
 loadawk || { printf 'Unable to create temp file, aborting\n' >&2 && exit 1; }
 
-if [[ "$uselocal" == "TRUE" && -f "$LOCALPATH" ]]; then
-	printf 'Reading data from "%s"...\n' "$LOCALPATH"
-	gawk -v "debug=$debug" -f "${tempfile}" "$LOCALPATH"
-elif [ -n "$CURLURL" ]; then
-	SERVERIP="$(cut -f3 -d/ <<< "$CURLURL" | cut -f2 -d@ | cut -f1 -d:)"
-	printf 'Reading data from "%s"...\n' $SERVERIP
-	set -o pipefail
-	curl --connect-timeout 2 -s "$CURLURL" | gawk -v "debug=$debug" -f "${tempfile}" || { printf 'Unable to connect to %s, aborting\n' "$CURLURL" >&2 && exit 1; }
-else
-	printf 'No log provided, exiting\n'
-	exit 1
+set -o pipefail
+loadlog
+if ! rungawk; then
+	usefull="true"
+	starttime=$((EPOCHSECONDS - 7 * 86400))
+	loadlog
+	rungawk
 fi
+}
+
+rungawk() {
+	gawk -v "debug=$debug" -v "starttime=$starttime" -f "${tempfile}" <<< "$returndata"
+}
+
+loadlog() {
+	if [ "$usefull" ]; then
+		CURLURL="$FULLCURLURL"
+		datasource="$(cut -f3 -d/ <<< "$CURLURL" | cut -f2 -d@ | cut -f1 -d:)"
+	elif [ "$uselocal" ]; then
+		datasource="$LOCALPATH"
+	fi
+
+	printf 'Reading data from %s...\n' "$datasource"
+
+	if [ "$uselocal" ]; then
+		if [ -f "$LOCALPATH" ]; then
+			returndata=$(<$LOCALPATH)
+		else
+			printf 'LOCALPATH required, but not defined, aborting\n'
+			exit 1
+		fi
+	else
+		returndata="$(curl --connect-timeout 2 -s "$CURLURL")" || { printf 'Unable to connect to %s, aborting\n' "$CURLURL" >&2 && exit 1; }
+	fi
 }
 
 cleanup() {
