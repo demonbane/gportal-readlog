@@ -66,10 +66,11 @@ rungawk() {
 loadlog() {
 	if [ "$usefull" ]; then
 		CURLURL="$FULLCURLURL"
-		datasource="$(cut -f3 -d/ <<< "$CURLURL" | cut -f2 -d@ | cut -f1 -d:)"
 	elif [ "$uselocal" ]; then
 		datasource="$LOCALPATH"
 	fi
+
+	datasource="$(cut -f3 -d/ <<< "$CURLURL" | cut -f2 -d@ | cut -f1 -d:)"
 
 	printf 'Reading data from %s...\n' "$datasource"
 
