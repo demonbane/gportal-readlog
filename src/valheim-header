@@ -12,15 +12,17 @@ fi
 source "${CONFIG}"
 
 x=1
-while getopts "dflh" opt; do
+while getopts "dflth" opt; do
 	case "$opt" in
 		d) debug="true";;
 		f) usefull="true";;
 		l) uselocal="true";;
+		t) today="true";;
 		h|\?) printf 'Usage: %s [-d] [-f] [-l] START_TIME[s|m|h|d|e]
 	-d	Print deaths as they occur
 	-f	Use the full log instead of current system log
 	-l	Use the log file found in LOCALPATH
+	-t	Only show logs since 00:00:00 today
 
 START_TIME can be specified with an optional suffix for:
 	(s)econds
@@ -41,6 +43,16 @@ if [ ! "$uselocal" -a -z "$CURLURL" ]; then
 elif [ ! "$uselocal" -a -z "$FULLCURLURL" ]; then
 	echo "FULLCURLURL is required, but not defined, exiting"
 	exit 1
+fi
+
+if [ "$today" ]; then
+	# get current time
+	printf -v t '%(%H %M %S)T'
+	# as an array
+	t=( $t )
+	now=$EPOCHSECONDS
+	(( now -= t[2] , now -= t[1] * 60 , now -= t * 3600 ))
+	starttime="$now"
 fi
 
 if [[ "$1" =~ ^[0-9]+[smhde]*$ ]]; then
