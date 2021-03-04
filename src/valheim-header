@@ -47,7 +47,7 @@ fi
 
 if [ "$today" ]; then
 	# get current time
-	printf -v t '%(%H %M %S)T'
+	printf -v t '%(%-H %-M %-S)T'
 	# as an array
 	t=( $t )
 	now=$EPOCHSECONDS
