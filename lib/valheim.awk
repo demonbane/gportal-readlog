@@ -11,7 +11,7 @@ BEGIN{
 	if ($3 == "0:0") {
 		deaths[username]++
 		if (debug)
-			print username,"died at",strftime("%R %D", tounix($1),0)
+			print username,"died at",strftime("%R %D", tounix($1),0),"("deaths[username],"deaths)"
 		next
 	}
 	split($3, uidparts, ":")
@@ -46,14 +46,20 @@ END {
 		if (username && ! logouttime[username]) {
 			duration=systime() - logintime[username]
 			totalduration[username]+=duration
+			totaldeaths[username]+=deaths[username]
 			printlogout()
 		}
 	if (length(totalduration) == 0)
 		exit 1
 	print "\nTOTALS:"
 	for (username in totalduration)
-		if (username)
-			print username":",totime(totalduration[username]),"("totaldeaths[username],"deaths)"
+		if (username) {
+			printf "%s: %s", username, totime(totalduration[username])
+			if (totaldeaths[username] > 0)
+				print " ("totaldeaths[username],"deaths)"
+			else
+				printf "\n"
+		}
 }
 
 function printlogout() {
