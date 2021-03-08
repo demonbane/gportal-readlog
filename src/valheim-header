@@ -4,21 +4,16 @@ shopt -s extglob
 
 CONFIG="${HOME}/.gportal-readlog.conf"
 
-if [ ! -f "${CONFIG}" ]; then
-	echo "${CONFIG} not found, aborting."
-	exit 1
-fi
-
-source "${CONFIG}"
-
 x=1
-while getopts "dflth" opt; do
+while getopts "c:dflth" opt; do
 	case "$opt" in
+		c) CONFIG="$OPTARG";;
 		d) debug="true";;
 		f) usefull="true";;
 		l) uselocal="true";;
 		t) today="true";;
-		h|\?) printf 'Usage: %s [-d] [-f] [-l] START_TIME[s|m|h|d|e]
+		h|\?) printf 'Usage: %s [-c CONFIGFILE] [-d] [-f] [-l] START_TIME[s|m|h|d|e]
+	-c	Specify configuration file to use
 	-d	Print deaths as they occur
 	-f	Use the full log instead of current system log
 	-l	Use the log file found in LOCALPATH
@@ -36,6 +31,13 @@ Values without a suffix assume "d", unless the value is >9999, in which case "e"
 	x=$OPTIND
 done
 shift $(($x-1))
+
+if [ ! -f "${CONFIG}" ]; then
+	echo "${CONFIG} not found, aborting."
+	exit 1
+fi
+
+source "${CONFIG}"
 
 if [ ! "$uselocal" -a -z "$CURLURL" ]; then
 	echo "CURLURL is required, but not defined, exiting"
