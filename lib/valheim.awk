@@ -82,8 +82,11 @@ function tounix(s,   timestr, timespec, patparts) {
 	daystr=patparts[3]" "patparts[1]" "patparts[2]
 	timestr=daystr" "timestr
 	timespec=mktime(timestr, 1)
-	#The logs appear to be in CET instead of UTC, so adjust
-	return timespec - 3600
+	# The logs are in CET/CEST, but with no label, so manually
+	# adjust for CEST. After 10/31/21 this needs to go back
+	# to 3600, and all login/logout times prior to 3/28/21 are
+	# off by an hour. Durations are unaffected fortunately.
+	return timespec - 7200
 }
 
 function join(array, start, end, sep,    result, i) {
